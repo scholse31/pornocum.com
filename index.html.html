@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VideoPlatform - Admin + Google Drive</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>.thumb{height:150px;object-fit:cover;width:100%;}</style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+
+<!-- HEADER -->
+<header class="bg-gray-800 p-4 shadow-lg flex justify-between items-center">
+<h1 class="text-2xl font-bold text-blue-400">🎬 VideoPlatform</h1>
+<div class="flex items-center gap-3">
+  <span id="whoami" class="text-sm text-gray-300 hidden"></span>
+  <button id="adminBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition text-sm">Admin Giriş</button>
+  <button id="openAdminPanelBtn" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded text-sm hidden">Admin Panel</button>
+</div>
+</header>
+
+<!-- SEARCH & CATEGORIES -->
+<section class="p-4 bg-gray-800 flex flex-col md:flex-row gap-4 md:items-center">
+<input id="searchInput" class="p-2 rounded bg-gray-700 text-white flex-1" placeholder="Video ara...">
+<div id="categoryContainer" class="flex gap-2 overflow-x-auto"></div>
+</section>
+
+<!-- VIDEO GRID -->
+<main class="p-4">
+<div class="container mx-auto">
+<div id="videoGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+<div id="pagination" class="flex justify-center gap-2 mt-4"></div>
+</div>
+</main>
+
+<!-- FOOTER -->
+<footer class="bg-gray-800 p-6 mt-8 text-center text-gray-400">
+<p>© 2025 VideoPlatform</p>
+</footer>
+
+<!-- VIDEO MODAL -->
+<div id="videoModal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center hidden z-50">
+<div class="bg-gray-900 p-4 rounded-lg relative w-11/12 md:w-3/4 lg:w-1/2">
+<button id="closeModal" class="absolute top-2 right-2 text-white text-2xl hover:text-red-500">&times;</button>
+<div id="modalContent" class="w-full h-64 md:h-96 rounded mb-2 overflow-hidden flex items-center justify-center"></div>
+<div class="text-white">
+<h3 id="modalTitle" class="font-bold text-lg"></h3>
+<p id="modalCategory" class="text-gray-400"></p>
+</div>
+</div>
+</div>
+
+<!-- AUTH MODAL -->
+<div id="authModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden z-60">
+<div class="bg-gray-900 p-6 rounded-lg w-96">
+<h3 class="text-lg font-bold text-blue-400 mb-3">Admin Girişi</h3>
+<label class="text-sm text-gray-300">Kullanıcı Adı</label>
+<input id="loginUser" class="w-full mb-2 p-2 rounded bg-gray-800 text-white" placeholder="scholse">
+<label class="text-sm text-gray-300">Parola</label>
+<input id="loginPass" type="password" class="w-full mb-3 p-2 rounded bg-gray-800 text-white" placeholder="scholse">
+<div class="flex gap-2">
+  <button id="loginBtn" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded w-full">Giriş</button>
+  <button id="closeAuth" class="bg-gray-700 hover:bg-gray-600 px-3 py-2 rounded w-full">Kapat</button>
+</div>
+<p class="text-sm text-gray-400 mt-3">Kullanıcı adı ve parola: <b>scholse</b></p>
+</div>
+</div>
+
+<!-- ADMIN PANEL -->
+<aside id="adminPanel" class="fixed top-20 right-4 bg-gray-800 p-4 rounded-lg shadow-lg w-96 hidden z-70 max-h-[80vh] overflow-auto">
+<h3 class="text-lg font-bold mb-2 text-blue-400 flex justify-between items-center">
+Admin Panel
+<button id="logoutBtn" class="text-sm bg-red-600 hover:bg-red-700 px-2 py-1 rounded">Çıkış</button>
+</h3>
+
+<div class="mb-4">
+<h4 class="font-semibold mb-1">Yeni Video Ekle</h4>
+<input id="addUrl" type="text" placeholder="Streamable, Google Drive veya mp4 URL" class="w-full mb-2 p-2 rounded bg-gray-700 text-white">
+<input id="addTitle" type="text" placeholder="Başlık (opsiyonel)" class="w-full mb-2 p-2 rounded bg-gray-700 text-white">
+<input id="addCategory" type="text" placeholder="Kategori" class="w-full mb-2 p-2 rounded bg-gray-700 text-white">
+<input id="addThumb" type="text" placeholder="Thumbnail URL (opsiyonel)" class="w-full mb-2 p-2 rounded bg-gray-700 text-white">
+<div class="flex gap-2">
+<button id="saveVideoBtn" class="bg-green-600 hover:bg-green-700 px-3 py-2 rounded w-full">Kaydet</button>
+<button id="clearStorageBtn" class="bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded w-full">Tümünü Sil</button>
+</div>
+<div id="adminMsg" class="text-sm text-gray-300 mt-2"></div>
+</div>
+
+<div>
+<h4 class="font-semibold mb-2">Mevcut Videolar</h4>
+<div id="adminVideoList"></div>
+</div>
+</aside>
+
+<script>
+const ADMIN_USER='scholse';
+const ADMIN_PASS='scholse';
+const LS_KEY='vp_videos_v4';
+
+/* DOM Elements */
+const adminBtn=document.getElementById('adminBtn');
+const authModal=document.getElementById('authModal');
+const closeAuth=document.getElementById('closeAuth');
+const loginBtn=document.getElementById('loginBtn');
+const loginUser=document.getElementById('loginUser');
+const loginPass=document.getElementById('loginPass');
+const openAdminPanelBtn=document.getElementById('openAdminPanelBtn');
+const adminPanel=document.getElementById('adminPanel');
+const whoami=document.getElementById('whoami');
+const logoutBtn=document.getElementById('logoutBtn');
+const addTitle=document.getElementById('addTitle');
+const addCategory=document.getElementById('addCategory');
+const addUrl=document.getElementById('addUrl');
+const addThumb=document.getElementById('addThumb');
+const saveVideoBtn=document.getElementById('saveVideoBtn');
+const clearStorageBtn=document.getElementById('clearStorageBtn');
+const adminVideoList=document.getElementById('adminVideoList');
+const adminMsg=document.getElementById('adminMsg');
+const categoryContainer=document.getElementById('categoryContainer');
+const videoGrid=document.getElementById('videoGrid');
+const videoModal=document.getElementById('videoModal');
+const modalContent=document.getElementById('modalContent');
+const modalTitle=document.getElementById('modalTitle');
+const modalCategory=document.getElementById('modalCategory');
+const closeModal=document.getElementById('closeModal');
+const searchInput=document.getElementById('searchInput');
+const pagination=document.getElementById('pagination');
+
+/* HELPERS */
+function getVideos(){return JSON.parse(localStorage.getItem(LS_KEY)||'[]');}
+function saveVideos(vs){localStorage.setItem(LS_KEY,JSON.stringify(vs));}
+function escapeHtml(t=''){return String(t).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+
+/* INIT DEFAULT VIDEOS */
+if(getVideos().length===0){
+  saveVideos([
+    {id:'v1',title:'Big Buck Bunny',category:'Eğlence',url:'https://www.w3schools.com/html/mov_bbb.mp4',thumb:'https://peach.blender.org/wp-content/uploads/title_anouncement.jpg?x11217'}
+  ]);
+}
+
+/* AUTH FLOW */
+adminBtn.addEventListener('click',()=>authModal.classList.remove('hidden'));
+closeAuth.addEventListener('click',()=>authModal.classList.add('hidden'));
+loginBtn.addEventListener('click',()=>{
+  if(loginUser.value.trim()===ADMIN_USER && loginPass.value.trim()===ADMIN_PASS){
+    authModal.classList.add('hidden');
+    openAdminPanelBtn.classList.remove('hidden');
+    adminPanel.classList.remove('hidden');
+    adminBtn.textContent='Girişli (Admin)';
+    whoami.textContent=ADMIN_USER; whoami.classList.remove('hidden');
+    sessionStorage.setItem('vp_admin_logged','1');
+    renderAdminList();
+  } else alert('Hatalı kullanıcı adı veya parola!');
+});
+if(sessionStorage.getItem('vp_admin_logged')==='1'){
+  openAdminPanelBtn.classList.remove('hidden');
+  adminPanel.classList.remove('hidden');
+  adminBtn.textContent='Girişli (Admin)';
+  whoami.textContent=ADMIN_USER; whoami.classList.remove('hidden');
+}
+logoutBtn.addEventListener('click',()=>{
+  sessionStorage.removeItem('vp_admin_logged');
+  openAdminPanelBtn.classList.add('hidden');
+  adminPanel.classList.add('hidden');
+  adminBtn.textContent='Admin Giriş';
+  whoami.classList.add('hidden');
+});
+openAdminPanelBtn.addEventListener('click',()=>adminPanel.classList.toggle('hidden'));
+
+/* CATEGORIES */
+function renderCategories(){
+  const vids=getVideos();
+  const cats=['Tüm Videolar',...new Set(vids.map(v=>v.category||'Diğer'))];
+  categoryContainer.innerHTML='';
+  cats.forEach((c,i)=>{
+    const btn=document.createElement('button');
+    btn.className='px-4 py-2 rounded whitespace-nowrap '+(i===0?'bg-blue-600':'bg-gray-700 hover:bg-gray-600');
+    btn.textContent=c; btn.dataset.cat=c;
+    btn.addEventListener('click',()=>{document.querySelectorAll('#categoryContainer button').forEach(b=>b.classList.replace('bg-blue-600','bg-gray-700')); btn.classList.replace('bg-gray-700','bg-blue-600');filterAndRender(c);});
+    categoryContainer.appendChild(btn);
+  });
+}
+renderCategories();
+
+/* FILTER + SEARCH + PAGINATION */
+let currentPage=1, itemsPerPage=6, filteredList=getVideos();
+function filterAndRender(cat='Tüm Videolar'){
+  const vids=getVideos();
+  const search=searchInput.value.toLowerCase();
+  filteredList=(cat==='Tüm Videolar'?vids:vids.filter(v=>v.category===cat)).filter(v=>v.title.toLowerCase().includes(search));
+  currentPage=1; renderGridPage();
+}
+searchInput.addEventListener('input',()=>filterAndRender(document.querySelector('#categoryContainer button.bg-blue-600').dataset.cat));
+
+function renderGridPage(){
+  const total=Math.ceil(filteredList.length/itemsPerPage)||1;
+  const start=(currentPage-1)*itemsPerPage;
+  const pageItems=filteredList.slice(start,start+itemsPerPage);
+  renderGrid(pageItems);
+  pagination.innerHTML='';
+  for(let i=1;i<=total;i++){
+    const btn=document.createElement('button');
+    btn.textContent=i;
+    btn.className='px-3 py-1 rounded '+(i===currentPage?'bg-blue-600':'bg-gray-700 hover:bg-gray-600');
+    btn.addEventListener('click',()=>{currentPage=i; renderGridPage();});
+    pagination.appendChild(btn);
+  }
+}
+
+/* RENDER GRID */
+function renderGrid(list){
+  videoGrid.innerHTML='';
+  list.forEach(v=>{
+    const card=document.createElement('div');
+    card.className='video-card bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:shadow-xl hover:scale-105 transition-transform cursor-pointer';
+    card.innerHTML=`<img class="thumb" src="${v.thumb||'https://via.placeholder.com/400x150?text=No+Thumb'}">
+    <div class="p-4"><h3 class="font-bold text-lg mb-1">${escapeHtml(v.title)}</h3>
+    <p class="text-gray-400 text-sm">Kategori: ${escapeHtml(v.category)}</p></div>`;
+    card.addEventListener('click',()=>openVideoModal(v));
+    videoGrid.appendChild(card);
+  });
+}
+
+/* VIDEO MODAL */
+function openVideoModal(v){
+  modalTitle.textContent=v.title;
+  modalCategory.textContent='Kategori: '+v.category;
+  modalContent.innerHTML='';
+  const url=v.url.trim();
+  const vid=document.createElement('video'); vid.src=url; vid.controls=true; vid.autoplay=true; vid.className='w-full h-full'; modalContent.appendChild(vid);
+  videoModal.classList.remove('hidden');
+}
+closeModal.addEventListener('click',closeVideoModal);
+videoModal.addEventListener('click',e=>{if(e.target===videoModal) closeVideoModal();});
+function closeVideoModal(){const v=modalContent.querySelector('video'); if(v){v.pause();v.src='';} modalContent.innerHTML=''; modalTitle.textContent=''; modalCategory.textContent=''; videoModal.classList.add('hidden');}
+
+/* ADMIN CRUD + STREAMABLE + GOOGLE DRIVE */
+saveVideoBtn.addEventListener('click',async()=>{
+  let url=addUrl.value.trim();
+  let title=addTitle.value.trim();
+  let cat=addCategory.value.trim()||'Diğer';
+  let thumb=addThumb.value.trim();
+  if(!url){adminMsg.textContent='Video URL gerekli'; return;}
+
+  let finalUrl=url, finalTitle=title||'Yeni Video';
+
+  // Streamable kontrol
+  if(url.includes('streamable.com')){
+    try{
+      const vidId=url.split('/').pop();
+      const resp=await fetch(`https://api.streamable.com/videos/${vidId}.json`);
+      const data=await resp.json();
+      if(data && data.files && data.files.mp4){finalUrl='https:'+data.files.mp4.url; if(!title) finalTitle=data.title||'Yeni Video';}
+    }catch(e){console.log('Streamable hata',e);}
+  }
+
+  // Google Drive kontrol
+  else if(url.includes('drive.google.com')){
+    const match = url.match(/\/d\/(.*?)\//);
+    if(match && match[1]){
+      const fileId = match[1];
+      finalUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
+      if(!title) finalTitle='Google Drive Video';
+    }
+  }
+
+  const vids=getVideos();
+  let id='v'+Date.now();
+  if(addTitle.dataset.editId){id=addTitle.dataset.editId; vids.splice(vids.findIndex(x=>x.id===id),1);}
+  vids.unshift({id,title:finalTitle,category:cat,url:finalUrl,thumb});
+  saveVideos(vids);
+  addTitle.value=''; addCategory.value=''; addUrl.value=''; addThumb.value=''; delete addTitle.dataset.editId;
+  adminMsg.textContent='Video kaydedildi ✅';
+  renderCategories(); renderAdminList(); filterAndRender(document.querySelector('#categoryContainer button.bg-blue-600').dataset.cat);
+});
+
+/* ADMIN LIST */
+function renderAdminList(){
+  const vids=getVideos();
+  adminVideoList.innerHTML='';
+  if(!vids.length) adminVideoList.innerHTML='<p class="text-gray-400">Henüz video yok.</p>';
+  vids.forEach(v=>{
+    const row=document.createElement('div');
+    row.className='flex items-center justify-between p-2 bg-gray-700 rounded mb-2';
+    const left=document.createElement('div'); left.innerHTML=`<div class="font-semibold">${escapeHtml(v.title)}</div><div class="text-xs text-gray-300">${escapeHtml(v.category)}</div>`;
+    const right=document.createElement('div');
+    right.innerHTML=`<button class="px-2 py-1 text-sm bg-red-600 hover:bg-red-700 rounded mr-2">Sil</button>
+                     <button class="px-2 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded mr-2">Oynat</button>
+                     <button class="px-2 py-1 text-sm bg-yellow-600 hover:bg-yellow-700 rounded">Düzenle</button>`;
+    right.children[0].addEventListener('click',()=>{if(!confirm('Silinsin mi?')) return; const newV=getVideos().filter(x=>x.id!==v.id); saveVideos(newV); renderAdminList(); renderCategories(); filterAndRender('Tüm Videolar');});
+    right.children[1].addEventListener('click',()=>openVideoModal(v));
+    right.children[2].addEventListener('click',()=>{addTitle.value=v.title; addCategory.value=v.category; addUrl.value=v.url; addThumb.value=v.thumb||''; addTitle.dataset.editId=v.id;});
+    row.appendChild(left); row.appendChild(right); adminVideoList.appendChild(row);
+  });
+}
+
+/* CLEAR ALL */
+clearStorageBtn.addEventListener('click',()=>{if(!confirm('Tüm videolar silinsin mi?')) return; saveVideos([]); renderAdminList(); renderCategories(); filterAndRender('Tüm Videolar'); adminMsg.textContent='Tüm veriler silindi.';});
+
+/* INIT */
+filterAndRender('Tüm Videolar'); renderAdminList();
+</script>
+</body>
+</html>
